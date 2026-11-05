@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>Sample Queue</title>
+<style>
+  :root {
+    --bg: #f5f7fa; --card: #ffffff; --ink: #14202e; --muted: #5a6778; --line: #dde3ea;
+    --brand: #1f3a5f; --brand-ink: #ffffff;
+    --queued: #8a6100; --queued-bg: #fff4d6;
+    --running: #0b5cad; --running-bg: #dcecfd;
+    --ready: #17703a; --ready-bg: #dcf5e4;
+    --danger: #b3261e; --hit: #fff1a8;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1722; --card: #182231; --ink: #e8eef5; --muted: #9aa8b9; --line: #2b384a;
+      --brand: #7fb0ea; --brand-ink: #0f1722;
+      --queued: #f0c35b; --queued-bg: #3a2e0e;
+      --running: #8cc0ff; --running-bg: #11335a;
+      --ready: #7fdc9f; --ready-bg: #123a22;
+      --danger: #ff8a80; --hit: #5a4d00;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+  header { background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  .bar { max-width: 880px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 12px; }
+  .bar h1 { font-size: 1.1rem; margin: 0; flex: 1; }
+  .conn { font-size: .8rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: #2eb85c; } .dot.bad { background: var(--danger); }
+  main { max-width: 880px; margin: 0 auto; padding: 16px; }
+  .summary { color: var(--muted); font-size: .9rem; margin: 0 0 12px; }
+  h2 { font-size: 1rem; margin: 22px 0 8px; display: flex; align-items: center; gap: 8px; }
+  h2 .count { font-weight: 500; color: var(--muted); font-size: .85rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .card.hit { outline: 3px solid var(--hit); }
+  .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .grow { flex: 1 1 190px; min-width: 0; }
+  .label { font-weight: 700; }
+  .sub { color: var(--muted); font-size: .88rem; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+  .pill.queued { background: var(--queued-bg); color: var(--queued); }
+  .pill.running { background: var(--running-bg); color: var(--running); }
+  .pill.ready { background: var(--ready-bg); color: var(--ready); }
+  .pill.collected { background: var(--line); color: var(--muted); }
+  .eta { font-weight: 600; text-align: right; }
+  .progress { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; margin-top: 8px; }
+  .progress > i { display: block; height: 100%; background: var(--running); }
+  .empty { color: var(--muted); padding: 10px 2px; font-size: .92rem; }
+  input, select, button, textarea { font: inherit; color: inherit; }
+  input[type=text], input[type=email], input[type=password], input[type=number], input[type=search] {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--running); outline-offset: 1px; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 14px; font-weight: 600; }
+  button.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+  button.small { padding: 6px 10px; font-size: .85rem; }
+  button.link { border: 0; background: none; padding: 0; color: var(--running); text-decoration: underline; font-weight: 500; }
+  button[disabled] { opacity: .55; cursor: wait; }
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(2, 1fr); }
+  .grid .full { grid-column: 1 / -1; }
+  label { font-size: .82rem; color: var(--muted); display: block; margin-bottom: 4px; }
+  .tabs { display: flex; gap: 6px; margin: 14px 0 4px; }
+  .tabs button { border-radius: 999px; }
+  .tabs button[aria-selected=true] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+  .err { color: var(--danger); font-size: .9rem; margin-top: 8px; min-height: 1.2em; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; min-width: 760px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; position: sticky; top: 0; background: var(--card); }
+  footer { max-width: 880px; margin: 0 auto; padding: 8px 16px 40px; color: var(--muted); font-size: .82rem; }
+  #toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+           padding: 10px 16px; border-radius: 10px; font-size: .9rem; max-width: 90vw; display: none; z-index: 20; }
+  dialog { border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); max-width: 360px; text-align: center; }
+  dialog::backdrop { background: rgba(0,0,0,.5); }
+  dialog svg { width: 100%; height: auto; background: #fff; padding: 8px; border-radius: 8px; }
+  @media (max-width: 520px) { .grid { grid-template-columns: 1fr; } .eta { text-align: left; } }
+  @media print { header, footer, .tools, .tabs { display: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1 id="title">Sample Queue</h1>
+    <div class="conn" title="Live connection status"><span class="dot" id="dot"></span><span id="connText">connecting</span></div>
+  </div>
+</header>
+<main id="app"><p class="sub">Loading…</p></main>
+<footer id="foot"></footer>
+<div id="toast" role="status" aria-live="polite"></div>
+<dialog id="qrDialog"><div id="qrBox"></div><p class="sub" id="qrUrl" style="word-break:break-all"></p>
+  <div class="tools" style="justify-content:center"><button class="small" onclick="window.print()">Print</button><button class="small" id="qrClose">Close</button></div></dialog>
+<noscript><p style="padding:16px">This page needs JavaScript.</p></noscript>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script>
+(() => {
+'use strict';
+
+/* ------------------------------------------------------------------ config */
+// Placeholders are replaced by scripts/build.mjs at deploy time.
+const CFG = { url: '__SUPABASE_URL__', key: '__SUPABASE_ANON_KEY__' };
+const MACHINE_SLOTS = 1;      // samples the machine can run at once (ETA assumes this)
+const POLL_MS = 30000;        // safety-net refresh if a realtime event is missed
+const TICK_MS = 15000;        // re-render countdowns
+const APP_NAME = 'Sample Queue';
+
+/* ----------------------------------------------------------------- helpers */
+const $ = (s, el = document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode */ } },
+};
+const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
+const ts = v => (v ? Date.parse(v) : NaN);
+const fmtClock = d => new Date(d).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+const fmtDateTime = v => (v ? new Date(v).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '');
+const fmtMin = m => {
+  if (m < 1) return 'under 1 min';
+  const r = Math.round(m);
+  return r < 60 ? `${r} min` : `${Math.floor(r / 60)} h ${r % 60 ? (r % 60) + ' min' : ''}`.trim();
+};
+let toastTimer;
+function toast(msg, bad) {
+  const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
+  t.style.background = bad ? 'var(--danger)' : ''; t.style.color = bad ? '#fff' : '';
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.style.display = 'none'; }, 4000);
+}
+
+/* ------------------------------------------------------------------- state */
+const state = {
+  view: 'student',
+  pub: [],            // public_samples rows
+  ops: [],            // samples rows (operators only)
+  session: null,
+  isOperator: false,
+  opTab: 'queue',
+  histQuery: '',
+  studentQuery: store.get('sq:query') || '',
+  lastSync: null,
+};
+let clockOffset = 0;  // server minus browser, ms
+const nowMs = () => Date.now() + clockOffset;
+
+if (!window.supabase || CFG.url.startsWith('__') || CFG.key.startsWith('__')) {
+  $('#app').innerHTML = `<div class="card"><b>Setup needed.</b><p class="sub">${
+    !window.supabase ? 'The Supabase library could not be loaded (check your network).' :
+    'SUPABASE_URL / SUPABASE_ANON_KEY were not injected. Run <code>node scripts/build.mjs</code>.'}</p></div>`;
+  $('#connText').textContent = 'offline';
+  return;
+}
+const sb = window.supabase.createClient(CFG.url, CFG.key, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  realtime: { params: { eventsPerSecond: 5 } },
+});
+
+/* --------------------------------------------------------------- ETA engine */
+// Simulates the machine: running samples free their slot after their remaining time,
+// queued samples (FIFO by queued_at) take the earliest free slot.
+function computeEta(rows, now) {
+  const by = (k, desc) => (a, b) => (desc ? -1 : 1) * (ts(a[k]) - ts(b[k]));
+  const running = rows.filter(r => r.status === 'running').sort(by('started_at'));
+  const queued  = rows.filter(r => r.status === 'queued').sort(by('queued_at'));
+  const ready   = rows.filter(r => r.status === 'ready').sort(by('ready_at', true));
+  const free = [];
+  const run = running.map(r => {
+    const elapsed = Math.max(0, (now - ts(r.started_at)) / 60000);
+    const left = r.est_minutes - elapsed;
+    free.push(Math.max(left, 0));
+    return { row: r, elapsed, left: Math.max(left, 0), overdue: left < 0,
+             pct: Math.min(100, (elapsed / r.est_minutes) * 100) };
+  });
+  while (free.length < MACHINE_SLOTS) free.push(0);
+  const q = queued.map((r, i) => {
+    free.sort((a, b) => a - b);
+    const startIn = free[0], readyIn = startIn + r.est_minutes;
+    free[0] = readyIn;
+    return { row: r, pos: i + 1, startIn, readyIn, readyAt: now + readyIn * 60000 };
+  });
+  return { run, q, ready };
+}
+window.__computeEta = computeEta; // exposed for tests
+
+/* ------------------------------------------------------------------ routing */
+function route() {
+  state.view = location.hash === '#operator' ? 'operator' : 'student';
+  $('#title').textContent = state.view === 'operator' ? `${APP_NAME}: Operator` : APP_NAME;
+  $('#foot').innerHTML = state.view === 'operator'
+    ? '<a href="#" style="color:inherit">Student view</a>'
+    : '<a href="#operator" style="color:inherit">Operator login</a>';
+  state.view === 'operator' ? mountOperator() : mountStudent();
+}
+window.addEventListener('hashchange', route);
+
+/* ------------------------------------------------------------- student view */
+function mountStudent() {
+  $('#app').innerHTML = `
+    <p class="summary" id="stuSummary"></p>
+    <label for="q">Find your sample (sample label, first name, or last digits of roll no.)</label>
+    <input id="q" type="search" placeholder="e.g. S-014 or 456" autocomplete="off" value="${esc(state.studentQuery)}">
+    <div id="stuLists"></div>`;
+  $('#q').addEventListener('input', e => {
+    state.studentQuery = e.target.value; store.set('sq:query', e.target.value); updateStudent();
+  });
+  updateStudent();
+}
+
+function updateStudent() {
+  const box = $('#stuLists'); if (!box || state.view !== 'student') return;
+  const now = nowMs();
+  const { run, q, ready } = computeEta(state.pub, now);
+  const needle = state.studentQuery.trim().toLowerCase();
+  const hit = r => needle && [r.sample_label, r.first_name, r.roll_masked].some(v => String(v).toLowerCase().includes(needle));
+  const who = r => `${esc(r.first_name)} · ${esc(r.roll_masked)}`;
+
+  $('#stuSummary').textContent =
+    `${q.length} waiting · ${run.length} in machine · ${ready.length} ready for pickup` +
+    (state.lastSync ? ` · updated ${fmtClock(state.lastSync)}` : '');
+
+  const sec = (title, n, html, empty) =>
+    `<h2>${title} <span class="count">${n}</span></h2>${html || `<div class="empty">${empty}</div>`}`;
+
+  const runHtml = run.map(x => `
+    <div class="card ${hit(x.row) ? 'hit' : ''}">
+      <div class="row"><div class="grow"><span class="label">${esc(x.row.sample_label)}</span>
+        <div class="sub">${who(x.row)}</div></div>
+        <div class="eta">${x.overdue ? 'Finishing up' : fmtMin(x.left) + ' left'}</div></div>
+      <div class="progress" role="progressbar" aria-valuenow="${Math.round(x.pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${x.pct}%"></i></div>
+    </div>`).join('');
+
+  const qHtml = q.map(x => `
+    <div class="card ${hit(x.row) ? 'hit' : ''}">
+      <div class="row"><span class="pill queued">#${x.pos}</span>
+        <div class="grow"><span class="label">${esc(x.row.sample_label)}</span><div class="sub">${who(x.row)}</div></div>
+        <div class="eta">Ready in ~${fmtMin(x.readyIn)}<div class="sub">about ${fmtClock(x.readyAt)}</div></div></div>
+    </div>`).join('');
+
+  const rHtml = ready.map(r => `
+    <div class="card ${hit(r) ? 'hit' : ''}">
+      <div class="row"><span class="pill ready">Ready</span>
+        <div class="grow"><span class="label">${esc(r.sample_label)}</span><div class="sub">${who(r)}</div></div>
+        <div class="eta">${fmtClock(ts(r.ready_at))}<div class="sub">${fmtMin(Math.max(0, (now - ts(r.ready_at)) / 60000))} ago</div></div></div>
+    </div>`).join('');
+
+  box.innerHTML =
+    sec('Ready for pickup', ready.length, rHtml, 'Nothing waiting for pickup.') +
+    sec('Now in machine', run.length, runHtml, 'Machine is idle.') +
+    sec('Waiting queue', q.length, qHtml, 'Queue is empty.');
+}
+
+/* ----------------------------------------------------------- operator view */
+function mountOperator() {
+  if (!state.session) return mountLogin();
+  if (!state.isOperator) {
+    $('#app').innerHTML = `<div class="card"><b>Not authorised.</b>
+      <p class="sub">${esc(state.session.user.email)} is signed in but is not on the operator list.</p>
+      <button id="logout">Sign out</button></div>`;
+    $('#logout').onclick = () => sb.auth.signOut();
+    return;
+  }
+  $('#app').innerHTML = `
+    <div class="row"><div class="grow sub">Signed in as <b>${esc(state.session.user.email)}</b></div>
+      <button class="small" id="qrBtn">Student QR</button>
+      <button class="small" id="csvBtn">Export CSV</button>
+      <button class="small" id="logout">Sign out</button></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tabQueue" aria-selected="true">Queue</button>
+      <button role="tab" id="tabHist" aria-selected="false">History</button></div>
+    <div id="opQueue">
+      <form id="addForm" class="card" autocomplete="off"><div class="grid">
+        <div><label for="f_name">Student name</label><input id="f_name" name="student_name" type="text" required maxlength="100"></div>
+        <div><label for="f_roll">Roll number</label><input id="f_roll" name="roll_no" type="text" required maxlength="30"></div>
+        <div><label for="f_label">Sample label</label><input id="f_label" name="sample_label" type="text" required maxlength="40"></div>
+        <div><label for="f_min">Run time (minutes)</label><input id="f_min" name="est_minutes" type="number" min="1" max="1440" value="${esc(store.get('sq:lastMin') || 30)}" required></div>
+        <div class="full"><label for="f_notes">Notes (optional, operators only)</label><input id="f_notes" name="notes" type="text" maxlength="500"></div>
+        <div class="full"><button class="primary" type="submit">Add to queue</button></div></div></form>
+      <div id="opLists"></div></div>
+    <div id="opHist" hidden>
+      <div class="tools"><input id="hq" type="search" placeholder="Search name, roll, label, status" value="${esc(state.histQuery)}" style="max-width:380px"></div>
+      <div id="histBox" style="margin-top:10px"></div></div>`;
+
+  $('#logout').onclick = () => sb.auth.signOut();
+  $('#csvBtn').onclick = exportCsv;
+  $('#qrBtn').onclick = showQr;
+  $('#addForm').addEventListener('submit', onAdd);
+  $('#hq').addEventListener('input', e => { state.histQuery = e.target.value; updateHistory(); });
+  const tab = name => {
+    state.opTab = name;
+    $('#opQueue').hidden = name !== 'queue'; $('#opHist').hidden = name !== 'hist';
+    $('#tabQueue').setAttribute('aria-selected', name === 'queue'); $('#tabHist').setAttribute('aria-selected', name === 'hist');
+    updateOperator();
+  };
+  $('#tabQueue').onclick = () => tab('queue'); $('#tabHist').onclick = () => tab('hist');
+  $('#opLists').addEventListener('click', onOpAction);
+  tab(state.opTab);
+}
+
+function mountLogin() {
+  $('#app').innerHTML = `
+    <form id="loginForm" class="card" style="max-width:380px;margin:20px auto">
+      <h2 style="margin-top:0">Operator sign-in</h2>
+      <label for="em">Email</label><input id="em" type="email" autocomplete="username" required>
+      <label for="pw" style="margin-top:10px">Password</label><input id="pw" type="password" autocomplete="current-password" required>
+      <div class="err" id="loginErr" role="alert"></div>
+      <button class="primary" type="submit" style="width:100%;margin-top:6px">Sign in</button></form>`;
+  $('#loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.submitter || $('#loginForm button'); btn.disabled = true;
+    const { error } = await sb.auth.signInWithPassword({ email: $('#em').value.trim(), password: $('#pw').value });
+    btn.disabled = false;
+    if (error) $('#loginErr').textContent = error.message;
+  });
+}
+
+function updateOperator() {
+  if (state.view !== 'operator' || !state.isOperator) return;
+  if (state.opTab === 'hist') return updateHistory();
+  const box = $('#opLists'); if (!box) return;
+  const active = state.ops.filter(r => r.status !== 'collected');
+  const { run, q, ready } = computeEta(active, nowMs());
+
+  const card = (r, extra, btn) => `
+    <div class="card"><div class="row"><div class="grow">
+      <span class="label">${esc(r.sample_label)}</span> <span class="pill ${r.status}">${r.status}</span>
+      <div class="sub">${esc(r.student_name)} · ${esc(r.roll_no)} · ${r.est_minutes} min${r.notes ? ' · ' + esc(r.notes) : ''}</div>
+      <div class="sub">${extra}</div></div>
+      <div class="row"><button class="small" data-act="edit" data-id="${esc(r.id)}" data-min="${r.est_minutes}" title="Change run time" aria-label="Change run time">✎</button>
+      ${btn}</div></div></div>`;
+  const btn = (act, r, text) => `<button class="primary" data-act="${act}" data-id="${esc(r.id)}">${text}</button>`;
+
+  const list = (title, items) => `<h2>${title} <span class="count">${items.length}</span></h2>${items.join('') || '<div class="empty">None.</div>'}`;
+  box.innerHTML =
+    list('Now in machine', run.map(x => card(x.row,
+      `Started ${fmtClock(ts(x.row.started_at))} by ${esc(x.row.started_by)} · ${x.overdue ? 'past estimate' : fmtMin(x.left) + ' left'}`,
+      btn('ready', x.row, '✅ Ready')))) +
+    list('Waiting queue', q.map(x => card(x.row,
+      `#${x.pos} · added by ${esc(x.row.operator_name)} · est. ready ${fmtClock(x.readyAt)}`,
+      btn('start', x.row, '▶ Start')))) +
+    list('Ready for pickup', ready.map(r => card(r,
+      `Ready ${fmtClock(ts(r.ready_at))} · marked by ${esc(r.ready_by)}`,
+      btn('collect', r, '📦 Collected'))));
+}
+
+function updateHistory() {
+  const box = $('#histBox'); if (!box) return;
+  const needle = state.histQuery.trim().toLowerCase();
+  const rows = state.ops.slice().sort((a, b) => ts(b.queued_at) - ts(a.queued_at))
+    .filter(r => !needle || [r.student_name, r.roll_no, r.sample_label, r.status, r.notes, r.operator_name].some(v => String(v ?? '').toLowerCase().includes(needle)));
+  const shown = rows.slice(0, 200);
+  box.innerHTML = `<div class="table-wrap"><table><thead><tr>
+    <th>Label</th><th>Student</th><th>Roll</th><th>Status</th><th>Min</th><th>Queued</th><th>Started</th><th>Ready</th><th>Collected</th><th>Added by</th><th>Started by</th><th>Ready by</th><th>Collected by</th></tr></thead><tbody>${
+    shown.map(r => `<tr><td>${esc(r.sample_label)}</td><td>${esc(r.student_name)}</td><td>${esc(r.roll_no)}</td>
+      <td><span class="pill ${r.status}">${r.status}</span></td><td>${r.est_minutes}</td>
+      <td>${fmtDateTime(r.queued_at)}</td><td>${fmtDateTime(r.started_at)}</td><td>${fmtDateTime(r.ready_at)}</td><td>${fmtDateTime(r.collected_at)}</td>
+      <td>${esc(r.operator_name)}</td><td>${esc(r.started_by)}</td><td>${esc(r.ready_by)}</td><td>${esc(r.collected_by)}</td></tr>`).join('')
+    || '<tr><td colspan="13" class="empty">No records.</td></tr>'}</tbody></table></div>
+    <p class="sub">${rows.length > shown.length ? `Showing newest ${shown.length} of ${rows.length}. ` : ''}Use Export CSV for everything.</p>`;
+}
+
+/* ---------------------------------------------------------- operator actions */
+async function onAdd(e) {
+  e.preventDefault();
+  const f = e.currentTarget, fd = new FormData(f), btn = e.submitter; btn.disabled = true;
+  const row = {
+    student_name: fd.get('student_name').trim(), roll_no: fd.get('roll_no').trim(),
+    sample_label: fd.get('sample_label').trim(), est_minutes: parseInt(fd.get('est_minutes'), 10),
+    notes: fd.get('notes').trim() || null,
+  };
+  const { error } = await sb.from('samples').insert(row);
+  btn.disabled = false;
+  if (error) return toast(error.message, true);
+  store.set('sq:lastMin', String(row.est_minutes));
+  f.reset(); $('#f_min').value = row.est_minutes; $('#f_name').focus();
+  toast(`Added ${row.sample_label}`);
+  loadOps();
+}
+
+const NEXT = { start: ['queued', 'running'], ready: ['running', 'ready'], collect: ['ready', 'collected'] };
+async function onOpAction(e) {
+  const b = e.target.closest('button[data-act]'); if (!b || b.disabled) return;
+  const { act, id } = b.dataset; b.disabled = true;
+  if (act === 'edit') {
+    const v = parseInt(prompt('Run time in minutes (1 to 1440):', b.dataset.min), 10);
+    if (v >= 1 && v <= 1440) {
+      const { error } = await sb.from('samples').update({ est_minutes: v }).eq('id', id);
+      if (error) toast(error.message, true);
+    }
+    b.disabled = false; return loadOps();
+  }
+  const [from, to] = NEXT[act];
+  // The .eq('status', from) guard makes the transition atomic: if the other operator
+  // already moved this sample, zero rows match and nothing is changed.
+  const { data, error } = await sb.from('samples').update({ status: to }).eq('id', id).eq('status', from).select('id');
+  if (error) toast(error.message, true);
+  else if (!data.length) toast('Another operator already changed this sample. List refreshed.', true);
+  await loadOps();
+}
+
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;           // neutralise spreadsheet formulas
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+function exportCsv() {
+  const cols = ['id','sample_label','student_name','roll_no','status','est_minutes','queued_at','started_at','ready_at','collected_at','operator_name','started_by','ready_by','collected_by','notes'];
+  const rows = state.ops.slice().sort((a, b) => ts(a.queued_at) - ts(b.queued_at));
+  const csv = '﻿' + [cols.join(','), ...rows.map(r => cols.map(c => csvCell(r[c])).join(','))].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `samples-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function showQr() {
+  const url = location.origin + location.pathname;
+  const qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+  $('#qrBox').innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+  $('#qrUrl').textContent = url;
+  $('#qrDialog').showModal();
+}
+$('#qrClose').onclick = () => $('#qrDialog').close();
+
+/* -------------------------------------------------------------- data + live */
+async function loadPublic() {
+  const { data, error } = await sb.from('public_samples').select('*').order('queued_at');
+  if (error) return setConn(false, 'error');
+  state.pub = data; state.lastSync = Date.now(); updateStudent();
+}
+async function loadOps() {
+  if (!state.isOperator) return;
+  const { data, error } = await sb.from('samples').select('*').order('queued_at').limit(5000);
+  if (error) return toast(error.message, true);
+  state.ops = data; updateOperator();
+}
+async function syncClock() {
+  const t0 = Date.now();
+  const { data, error } = await sb.rpc('server_now');
+  if (error || !data) return;
+  clockOffset = Date.parse(data) - (t0 + Date.now()) / 2;
+}
+function setConn(ok, text) {
+  $('#dot').className = 'dot ' + (ok ? 'live' : 'bad');
+  $('#connText').textContent = text || (ok ? 'live' : 'reconnecting');
+}
+function listen(name, table, onChange) {
+  return sb.channel(name)
+    .on('postgres_changes', { event: '*', schema: 'public', table }, debounce(onChange, 250))
+    .subscribe(status => { if (name === 'rt-public') setConn(status === 'SUBSCRIBED'); });
+}
+listen('rt-public', 'public_samples', loadPublic);
+
+let opChannel = null;
+async function handleSession(session) {
+  // Token refreshes re-fire the auth event; nothing to redo for the same signed-in operator.
+  if (session && opChannel && state.session?.user.id === session.user.id) { state.session = session; return; }
+  state.session = session; state.isOperator = false;
+  if (opChannel) { sb.removeChannel(opChannel); opChannel = null; }
+  if (session) {
+    const { data } = await sb.rpc('is_operator');
+    state.isOperator = data === true;
+    if (state.isOperator) { opChannel = listen('rt-samples', 'samples', loadOps); await loadOps(); }
+  } else state.ops = [];
+  if (state.view === 'operator') mountOperator();
+}
+// Defer to avoid calling supabase from inside its own auth callback.
+sb.auth.onAuthStateChange((_evt, session) => setTimeout(() => handleSession(session), 0));
+
+/* -------------------------------------------------------------------- start */
+route();
+syncClock().then(() => { updateStudent(); updateOperator(); });
+loadPublic();
+setInterval(() => { updateStudent(); updateOperator(); }, TICK_MS);
+setInterval(() => { loadPublic(); loadOps(); }, POLL_MS);
+setInterval(syncClock, 5 * 60000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { syncClock(); loadPublic(); loadOps(); } });
+})();
+</script>
+</body>
+</html>
