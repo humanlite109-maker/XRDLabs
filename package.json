@@ -1,0 +1,14 @@
+{
+  "name": "sample-queue",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lab sample queue and tracking: static page + Supabase",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "serve": "node scripts/build.mjs && python3 -m http.server 8080 -d dist",
+    "smoke": "node scripts/smoke-test.mjs",
+    "operators": "node scripts/create-operators.mjs"
+  }
+}

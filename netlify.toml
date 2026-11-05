@@ -1,0 +1,8 @@
+# Alternative to GitHub Pages: connect the repo in Netlify, then set these
+# environment variables in Site settings: SUPABASE_URL, SUPABASE_ANON_KEY.
+[build]
+  command = "node scripts/build.mjs"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
